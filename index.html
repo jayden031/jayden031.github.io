@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cannon Game</title>
+<title>Mobile Cannon Game</title>
 <style>
   body {
     margin: 0;
     font-family: Arial, sans-serif;
-    background-color: #F5E6D3; /* Light brown */
+    background-color: #F5E6D3;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -18,11 +18,12 @@
     text-align: center;
   }
   #gameCanvas {
-    background-color: #ECD9B0; /* Light brown canvas */
+    background-color: #ECD9B0;
     display: block;
     margin: 20px auto;
-    border: 3px solid #4B2E2E; /* Dark brown border */
+    border: 3px solid #4B2E2E;
     border-radius: 10px;
+    touch-action: none; /* Disable default scrolling gestures */
   }
   input, button {
     padding: 10px 15px;
@@ -60,8 +61,12 @@ let bullets = [];
 let items = [];
 let score = 0;
 let timeLeft = 30;
-let gameInterval, itemInterval, timerInterval;
 let username = '';
+let gameLoopId;
+let itemIntervalId;
+let timerIntervalId;
+let autoShootIntervalId;
+let dragging = false;
 
 function startGame() {
     username = document.getElementById('username').value.trim();
@@ -77,24 +82,36 @@ function startGame() {
     items = [];
     timeLeft = 30;
 
-    document.addEventListener('keydown', keyDownHandler);
+    canvas.addEventListener('touchstart', startDrag);
+    canvas.addEventListener('touchmove', dragCannon);
+    canvas.addEventListener('touchend', endDrag);
 
-    gameInterval = requestAnimationFrame(gameLoop);
-    itemInterval = setInterval(spawnItem, 1000);
-    timerInterval = setInterval(() => {
+    autoShootIntervalId = setInterval(shootBullet, 400);
+    itemIntervalId = setInterval(spawnItem, 1000);
+    timerIntervalId = setInterval(() => {
         timeLeft--;
         if(timeLeft <= 0) endGame();
     }, 1000);
+
+    gameLoop();
 }
 
-function keyDownHandler(e) {
-    if(e.key === "ArrowLeft") cannon.x -= 20;
-    if(e.key === "ArrowRight") cannon.x += 20;
-    if(e.key === " ") shootBullet();
-
-    // Clamp cannon within canvas
-    if(cannon.x < 0) cannon.x = 0;
-    if(cannon.x + cannon.width > canvas.width) cannon.x = canvas.width - cannon.width;
+// Mobile drag events
+function startDrag(e) {
+    dragging = true;
+}
+function dragCannon(e) {
+    if(dragging) {
+        const touchX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+        cannon.x = touchX - cannon.width / 2;
+        // Keep cannon within bounds
+        if(cannon.x < 0) cannon.x = 0;
+        if(cannon.x + cannon.width > canvas.width) cannon.x = canvas.width - cannon.width;
+        e.preventDefault();
+    }
+}
+function endDrag(e) {
+    dragging = false;
 }
 
 function shootBullet() {
@@ -164,15 +181,16 @@ function draw() {
 function gameLoop() {
     update();
     draw();
-    gameInterval = requestAnimationFrame(gameLoop);
+    gameLoopId = requestAnimationFrame(gameLoop);
 }
 
 function endGame() {
-    cancelAnimationFrame(gameInterval);
-    clearInterval(itemInterval);
-    clearInterval(timerInterval);
+    cancelAnimationFrame(gameLoopId);
+    clearInterval(itemIntervalId);
+    clearInterval(timerIntervalId);
+    clearInterval(autoShootIntervalId);
     alert(`Time's up! ${username}, your final score is ${score}`);
-    location.reload(); // Reload to start again
+    location.reload(); // Reload to play again
 }
 </script>
 </body>
