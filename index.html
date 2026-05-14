@@ -51,6 +51,7 @@
             margin-top: 20px;
             color: #4B2E2E;
             width: 300px;
+            display: none; /* ✅ hidden during game */
         }
     </style>
 </head>
@@ -71,7 +72,7 @@
 <script>
 // ===================== SUPABASE SETUP =====================
 const SUPABASE_URL = "https://cbeiddwkqrpmvuaqmcgn.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZWlkZHdrcXJwbXZ1YXFtY2duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDE3MzUsImV4cCI6MjA5NDI3NzczNX0.YWWX2vmejo_vqL4PkgdnxfCtiEaNsh3KMY1LFOacJsM";
+const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===================== GAME VARIABLES =====================
@@ -87,7 +88,6 @@ let gameActive = false;
 let dragging = false;
 
 let itemIntervalId, timerIntervalId;
-let leaderboardIntervalId;
 
 let highestRank = null;
 
@@ -95,7 +95,11 @@ let highestRank = null;
 document.getElementById('startBtn').addEventListener('click', startGame);
 
 // Touch controls
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); dragging = true; }, { passive: false });
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    dragging = true;
+}, { passive: false });
+
 canvas.addEventListener('touchmove', (e) => {
     if (dragging) {
         const rect = canvas.getBoundingClientRect();
@@ -104,6 +108,7 @@ canvas.addEventListener('touchmove', (e) => {
     }
     e.preventDefault();
 }, { passive: false });
+
 canvas.addEventListener('touchend', () => dragging = false);
 
 function moveCannon(x) {
@@ -119,7 +124,11 @@ function startGame() {
 
     document.getElementById('startScreen').style.display = 'none';
     canvas.style.display = 'block';
-    document.getElementById('leaderboard').innerHTML = "";
+
+    // hide leaderboard during game
+    const lb = document.getElementById('leaderboard');
+    lb.style.display = 'none';
+    lb.innerHTML = "";
 
     score = 0;
     timeLeft = 30;
@@ -129,11 +138,12 @@ function startGame() {
 
     clearInterval(itemIntervalId);
     clearInterval(timerIntervalId);
-    clearInterval(leaderboardIntervalId);
 
     itemIntervalId = setInterval(spawnItem, 800);
-    timerIntervalId = setInterval(() => { timeLeft--; if (timeLeft <= 0) endGame(); }, 1000);
-    leaderboardIntervalId = setInterval(updateLeaderboard, 1000); // live leaderboard update
+    timerIntervalId = setInterval(() => {
+        timeLeft--;
+        if (timeLeft <= 0) endGame();
+    }, 1000);
 
     gameLoop();
 }
@@ -145,28 +155,43 @@ function spawnItem() {
 }
 
 function checkCollision(a, b) {
-    return (a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y);
+    return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+    );
 }
 
 // ===================== UPDATE =====================
 function update() {
     for (let i = items.length - 1; i >= 0; i--) {
         items[i].y += 4;
+
         if (checkCollision(cannon, items[i])) {
             score += items[i].type === 'good' ? 1 : -1;
             items.splice(i, 1);
             continue;
         }
-        if (items[i] && items[i].y > canvas.height) items.splice(i, 1);
+
+        if (items[i].y > canvas.height) {
+            items.splice(i, 1);
+        }
     }
 }
 
 // ===================== DRAW =====================
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     ctx.fillStyle = "#4B2E2E";
     ctx.fillRect(cannon.x, cannon.y, cannon.width, cannon.height);
-    items.forEach(i => { ctx.fillStyle = i.type === 'good' ? "#8BC34A" : "#FF5252"; ctx.fillRect(i.x, i.y, i.width, i.height); });
+
+    items.forEach(i => {
+        ctx.fillStyle = i.type === 'good' ? "#8BC34A" : "#FF5252";
+        ctx.fillRect(i.x, i.y, i.width, i.height);
+    });
+
     ctx.fillStyle = "#4B2E2E";
     ctx.font = "bold 16px Arial";
     ctx.fillText(`Player: ${username}`, 10, 25);
@@ -175,54 +200,88 @@ function draw() {
 }
 
 // ===================== LOOP =====================
-function gameLoop() { if (!gameActive) return; update(); draw(); requestAnimationFrame(gameLoop); }
+function gameLoop() {
+    if (!gameActive) return;
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
 
 // ===================== END GAME =====================
 async function endGame() {
     gameActive = false;
+
     clearInterval(itemIntervalId);
     clearInterval(timerIntervalId);
-    clearInterval(leaderboardIntervalId);
 
     alert(`Time's up! Your final score: ${score}`);
+
     await saveScore(username, score);
-    await updateLeaderboard(true); // show final leaderboard
+    await showFinalLeaderboard();
 
     canvas.style.display = 'none';
+
+    const lb = document.getElementById('leaderboard');
+    lb.style.display = 'block'; // ✅ show only after game ends
+
     document.getElementById('startScreen').style.display = 'block';
 }
 
 // ===================== SUPABASE =====================
 async function saveScore(name, score) {
     try {
-        const { data: existing } = await supabaseClient.from('scores').select('id, score').eq('name', name).limit(1).single();
+        const { data: existing } = await supabaseClient
+            .from('scores')
+            .select('id, score')
+            .eq('name', name)
+            .limit(1)
+            .single();
+
         if (existing) {
-            if (score > existing.score) await supabaseClient.from('scores').update({ score }).eq('id', existing.id);
+            if (score > existing.score) {
+                await supabaseClient
+                    .from('scores')
+                    .update({ score })
+                    .eq('id', existing.id);
+            }
         } else {
-            await supabaseClient.from('scores').insert([{ name, score }]);
+            await supabaseClient
+                .from('scores')
+                .insert([{ name, score }]);
         }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+        console.error(err);
+    }
 }
 
-// ===================== LEADERBOARD =====================
-async function updateLeaderboard(final = false) {
+// ===================== FINAL LEADERBOARD ONLY =====================
+async function showFinalLeaderboard() {
     try {
-        const { data } = await supabaseClient.from('scores').select('name, score').order('score', { ascending: false });
+        const { data } = await supabaseClient
+            .from('scores')
+            .select('name, score')
+            .order('score', { ascending: false });
+
         if (!data) return;
 
-        // Find current player rank
         const rank = data.findIndex(s => s.name === username) + 1;
-        if (!highestRank || rank < highestRank) highestRank = rank;
+        highestRank = rank;
 
-        let html = "<h3>Top Scores</h3><ol>";
-        data.slice(0, 5).forEach(s => { html += `<li>${s.name}: ${s.score}</li>`; });
+        let html = "<h3>Final Leaderboard</h3><ol>";
+
+        data.slice(0, 5).forEach(s => {
+            html += `<li>${s.name}: ${s.score}</li>`;
+        });
+
         html += "</ol>";
-        html += `<p>Your Current Rank: ${rank}</p>`;
-        html += `<p>Your Highest Rank: ${highestRank}</p>`;
+        html += `<p>Your Rank: ${rank}</p>`;
         html += `<p>Your Score: ${score}</p>`;
 
         document.getElementById("leaderboard").innerHTML = html;
-    } catch (err) { console.error(err); }
+
+    } catch (err) {
+        console.error(err);
+    }
 }
 </script>
 
