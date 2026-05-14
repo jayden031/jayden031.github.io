@@ -87,16 +87,15 @@ let gameActive = false;
 let dragging = false;
 
 let itemIntervalId, timerIntervalId;
+let leaderboardIntervalId;
+
+let highestRank = null;
 
 // ===================== EVENTS =====================
 document.getElementById('startBtn').addEventListener('click', startGame);
 
 // Touch controls
-canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    dragging = true;
-}, { passive: false });
-
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); dragging = true; }, { passive: false });
 canvas.addEventListener('touchmove', (e) => {
     if (dragging) {
         const rect = canvas.getBoundingClientRect();
@@ -105,7 +104,6 @@ canvas.addEventListener('touchmove', (e) => {
     }
     e.preventDefault();
 }, { passive: false });
-
 canvas.addEventListener('touchend', () => dragging = false);
 
 function moveCannon(x) {
@@ -116,30 +114,26 @@ function moveCannon(x) {
 // ===================== GAME =====================
 function startGame() {
     const nameVal = document.getElementById('usernameInput').value.trim();
-    if (!nameVal) {
-        alert("Please enter your name!");
-        return;
-    }
+    if (!nameVal) { alert("Please enter your name!"); return; }
     username = nameVal;
 
     document.getElementById('startScreen').style.display = 'none';
-    document.getElementById('leaderboard').innerHTML = "";
     canvas.style.display = 'block';
+    document.getElementById('leaderboard').innerHTML = "";
 
     score = 0;
     timeLeft = 30;
     items = [];
+    highestRank = null;
     gameActive = true;
 
     clearInterval(itemIntervalId);
     clearInterval(timerIntervalId);
+    clearInterval(leaderboardIntervalId);
 
     itemIntervalId = setInterval(spawnItem, 800);
-
-    timerIntervalId = setInterval(() => {
-        timeLeft--;
-        if (timeLeft <= 0) endGame();
-    }, 1000);
+    timerIntervalId = setInterval(() => { timeLeft--; if (timeLeft <= 0) endGame(); }, 1000);
+    leaderboardIntervalId = setInterval(updateLeaderboard, 1000); // live leaderboard update
 
     gameLoop();
 }
@@ -147,55 +141,32 @@ function startGame() {
 function spawnItem() {
     let type = Math.random() < 0.7 ? 'good' : 'bomb';
     let x = Math.random() * (canvas.width - 30);
-
-    items.push({
-        x,
-        y: -30,
-        width: 30,
-        height: 30,
-        type
-    });
+    items.push({ x, y: -30, width: 30, height: 30, type });
 }
 
 function checkCollision(a, b) {
-    return (
-        a.x < b.x + b.width &&
-        a.x + a.width > b.x &&
-        a.y < b.y + b.height &&
-        a.y + a.height > b.y
-    );
+    return (a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y);
 }
 
 // ===================== UPDATE =====================
 function update() {
     for (let i = items.length - 1; i >= 0; i--) {
         items[i].y += 4;
-
-        // Collision with cannon
         if (checkCollision(cannon, items[i])) {
             score += items[i].type === 'good' ? 1 : -1;
             items.splice(i, 1);
             continue;
         }
-
-        if (items[i] && items[i].y > canvas.height) {
-            items.splice(i, 1);
-        }
+        if (items[i] && items[i].y > canvas.height) items.splice(i, 1);
     }
 }
 
 // ===================== DRAW =====================
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     ctx.fillStyle = "#4B2E2E";
     ctx.fillRect(cannon.x, cannon.y, cannon.width, cannon.height);
-
-    items.forEach(i => {
-        ctx.fillStyle = i.type === 'good' ? "#8BC34A" : "#FF5252";
-        ctx.fillRect(i.x, i.y, i.width, i.height);
-    });
-
+    items.forEach(i => { ctx.fillStyle = i.type === 'good' ? "#8BC34A" : "#FF5252"; ctx.fillRect(i.x, i.y, i.width, i.height); });
     ctx.fillStyle = "#4B2E2E";
     ctx.font = "bold 16px Arial";
     ctx.fillText(`Player: ${username}`, 10, 25);
@@ -204,24 +175,18 @@ function draw() {
 }
 
 // ===================== LOOP =====================
-function gameLoop() {
-    if (!gameActive) return;
-    update();
-    draw();
-    requestAnimationFrame(gameLoop);
-}
+function gameLoop() { if (!gameActive) return; update(); draw(); requestAnimationFrame(gameLoop); }
 
 // ===================== END GAME =====================
 async function endGame() {
     gameActive = false;
-
     clearInterval(itemIntervalId);
     clearInterval(timerIntervalId);
+    clearInterval(leaderboardIntervalId);
 
     alert(`Time's up! Your final score: ${score}`);
-
     await saveScore(username, score);
-    await showLeaderboard();
+    await updateLeaderboard(true); // show final leaderboard
 
     canvas.style.display = 'none';
     document.getElementById('startScreen').style.display = 'block';
@@ -230,52 +195,34 @@ async function endGame() {
 // ===================== SUPABASE =====================
 async function saveScore(name, score) {
     try {
-        // Check if player already exists
-        const { data: existing } = await supabaseClient
-            .from('scores')
-            .select('id, score')
-            .eq('name', name)
-            .limit(1)
-            .single();
-
+        const { data: existing } = await supabaseClient.from('scores').select('id, score').eq('name', name).limit(1).single();
         if (existing) {
-            if (score > existing.score) {
-                await supabaseClient
-                    .from('scores')
-                    .update({ score })
-                    .eq('id', existing.id);
-            }
+            if (score > existing.score) await supabaseClient.from('scores').update({ score }).eq('id', existing.id);
         } else {
             await supabaseClient.from('scores').insert([{ name, score }]);
         }
-    } catch (err) {
-        console.error(err);
-    }
+    } catch (err) { console.error(err); }
 }
 
-async function showLeaderboard() {
+// ===================== LEADERBOARD =====================
+async function updateLeaderboard(final = false) {
     try {
-        const { data } = await supabaseClient
-            .from('scores')
-            .select('name, score')
-            .order('score', { ascending: false });
+        const { data } = await supabaseClient.from('scores').select('name, score').order('score', { ascending: false });
+        if (!data) return;
 
-        if (data) {
-            let html = "<h3>Top Scores</h3><ol>";
-            data.slice(0, 5).forEach(s => {
-                html += `<li>${s.name}: ${s.score}</li>`;
-            });
-            html += "</ol>";
+        // Find current player rank
+        const rank = data.findIndex(s => s.name === username) + 1;
+        if (!highestRank || rank < highestRank) highestRank = rank;
 
-            // Find current player's rank
-            let rank = data.findIndex(s => s.name === username) + 1;
-            html += `<p>Your Rank: ${rank}</p>`;
+        let html = "<h3>Top Scores</h3><ol>";
+        data.slice(0, 5).forEach(s => { html += `<li>${s.name}: ${s.score}</li>`; });
+        html += "</ol>";
+        html += `<p>Your Current Rank: ${rank}</p>`;
+        html += `<p>Your Highest Rank: ${highestRank}</p>`;
+        html += `<p>Your Score: ${score}</p>`;
 
-            document.getElementById("leaderboard").innerHTML = html;
-        }
-    } catch (err) {
-        console.error(err);
-    }
+        document.getElementById("leaderboard").innerHTML = html;
+    } catch (err) { console.error(err); }
 }
 </script>
 
