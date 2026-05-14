@@ -1,207 +1,199 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mobile Cannon Game</title>
-<!-- Supabase SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Cannon Game</title>
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
 
-<style>
-  body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background-color: #F5E6D3;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    flex-direction: column;
-  }
-  .container {
-    text-align: center;
-  }
-  #gameCanvas {
-    background-color: #ECD9B0;
-    display: none;
-    margin: 20px auto;
-    border: 3px solid #4B2E2E;
-    border-radius: 10px;
-    touch-action: none;
-  }
-  input, button {
-    padding: 10px 15px;
-    font-size: 16px;
-    border-radius: 8px;
-    border: 2px solid #4B2E2E;
-    margin: 5px;
-  }
-  button {
-    background-color: #4B2E2E;
-    color: #F5E6D3;
-    cursor: pointer;
-  }
-  button:hover {
-    background-color: #3A1F1F;
-  }
-  #leaderboard {
-    margin-top: 20px;
-    color: #4B2E2E;
-    text-align: center;
-  }
-  #debug {
-    color: red;
-    text-align: center;
-    margin-top: 10px;
-  }
-</style>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #F5E6D3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .container {
+            text-align: center;
+        }
+        #gameCanvas {
+            background-color: #ECD9B0;
+            display: none;
+            margin: 10px auto;
+            border: 3px solid #4B2E2E;
+            border-radius: 10px;
+            touch-action: none;
+        }
+        input, button {
+            padding: 12px 20px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 2px solid #4B2E2E;
+            margin: 5px;
+        }
+        button {
+            background-color: #4B2E2E;
+            color: #F5E6D3;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #leaderboard {
+            margin-top: 20px;
+            color: #4B2E2E;
+            width: 300px;
+        }
+        #leaderboard ol {
+            text-align: left;
+        }
+    </style>
 </head>
 <body>
 
 <div class="container" id="startScreen">
-  <h1>Enter Your Name</h1>
-  <input type="text" id="username" placeholder="Your Name">
-  <button id="startBtn">Start</button>
+    <h1>Cannon Blaster</h1>
+    <p>Hit green blocks, avoid red blocks!</p>
+    <input type="text" id="username" placeholder="Enter Your Name">
+    <br>
+    <button id="startBtn">START GAME</button>
 </div>
 
 <canvas id="gameCanvas" width="360" height="600"></canvas>
 <div id="leaderboard"></div>
-<div id="debug"></div>
 
 <script>
 // ===== Supabase Setup =====
-const SUPABASE_URL = "https://cbeiddwkqrpmvuaqmcgn.supabase.co"; // Replace with your URL
+const SUPABASE_URL = "https://cbeiddwkqrpmvuaqmcgn.supabase.co"; 
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZWlkZHdrcXJwbXZ1YXFtY2duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDE3MzUsImV4cCI6MjA5NDI3NzczNX0.YWWX2vmejo_vqL4PkgdnxfCtiEaNsh3KMY1LFOacJsM"; 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); 
 
-// ===== Debug Function =====
-function debug(msg){
-    const debugDiv = document.getElementById('debug');
-    debugDiv.innerHTML += msg + "<br>";
-}
+// Using window.supabase to ensure the library is found
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ===== Game Setup =====
+// ===== Game Variables =====
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-let cannon = { x: canvas.width/2 - 25, y: canvas.height - 50, width: 50, height: 30 };
+let cannon = { x: 155, y: 540, width: 50, height: 30 };
 let bullets = [];
 let items = [];
 let score = 0;
 let timeLeft = 30;
-let username = '';
-let gameLoopId;
-let itemIntervalId;
-let timerIntervalId;
-let autoShootIntervalId;
-let dragging = false;
+let username = ''; // Global variable
+let gameActive = false;
+let gameLoopId, itemIntervalId, timerIntervalId, autoShootIntervalId;
 
-// ===== Event for Start Button =====
+// ===== Event Listeners =====
 document.getElementById('startBtn').addEventListener('click', startGame);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); dragging = true; }, {passive: false});
+canvas.addEventListener('touchmove', dragCannon, {passive: false});
+canvas.addEventListener('touchend', () => { dragging = false; });
 
-// ===== Start Game =====
+// Support mouse for testing on PC
+canvas.addEventListener('mousedown', () => { dragging = true; });
+canvas.addEventListener('mousemove', (e) => {
+    if(dragging) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        moveCannonLogic(mouseX);
+    }
+});
+canvas.addEventListener('mouseup', () => { dragging = false; });
+
+function moveCannonLogic(targetX) {
+    cannon.x = targetX - cannon.width / 2;
+    if (cannon.x < 0) cannon.x = 0;
+    if (cannon.x + cannon.width > canvas.width) cannon.x = canvas.width - cannon.width;
+}
+
+function dragCannon(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touchX = e.touches[0].clientX - rect.left;
+    moveCannonLogic(touchX);
+    e.preventDefault();
+}
+
+// ===== Game Core Functions =====
 function startGame() {
-    debug("startGame called");
+    const nameInput = document.getElementById('username');
+    const nameValue = nameInput.value.trim();
 
-    username = document.getElementById('username').value.trim();
-    debug("Username entered: " + username);
-
-    if(!username) {
+    if (!nameValue) {
         alert("Please enter your name!");
         return;
     }
 
+    username = nameValue;
     document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('leaderboard').innerHTML = "";
     canvas.style.display = 'block';
-    debug("Canvas shown");
 
+    // Reset state
     score = 0;
+    timeLeft = 30;
     bullets = [];
     items = [];
-    timeLeft = 30;
+    gameActive = true;
 
-    canvas.removeEventListener('touchstart', startDrag);
-    canvas.removeEventListener('touchmove', dragCannon);
-    canvas.removeEventListener('touchend', endDrag);
-
-    canvas.addEventListener('touchstart', startDrag);
-    canvas.addEventListener('touchmove', dragCannon);
-    canvas.addEventListener('touchend', endDrag);
-    debug("Event listeners attached");
-
-    autoShootIntervalId = setInterval(() => { 
-        debug("shootBullet called"); 
-        shootBullet(); 
-    }, 400);
-    itemIntervalId = setInterval(() => { 
-        debug("spawnItem called"); 
-        spawnItem(); 
-    }, 1000);
+    // Start Loops
+    autoShootIntervalId = setInterval(shootBullet, 400);
+    itemIntervalId = setInterval(spawnItem, 800);
     timerIntervalId = setInterval(() => {
         timeLeft--;
-        debug("Time left: " + timeLeft);
-        if(timeLeft <= 0) endGame();
+        if (timeLeft <= 0) endGame();
     }, 1000);
 
-    debug("Starting game loop");
     gameLoop();
 }
 
-// ===== Drag Controls =====
-function startDrag(e){ dragging = true; }
-function dragCannon(e){
-    if(dragging){
-        const touchX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
-        cannon.x = touchX - cannon.width/2;
-        if(cannon.x < 0) cannon.x = 0;
-        if(cannon.x + cannon.width > canvas.width) cannon.x = canvas.width - cannon.width;
-        e.preventDefault();
-    }
-}
-function endDrag(e){ dragging = false; }
-
-// ===== Bullets =====
-function shootBullet(){
+function shootBullet() {
     bullets.push({ x: cannon.x + cannon.width/2 - 5, y: cannon.y, width: 10, height: 20 });
 }
 
-// ===== Falling Items =====
-function spawnItem(){
-    let type = Math.random() < 0.5 ? 'good' : 'bomb';
+function spawnItem() {
+    let type = Math.random() < 0.7 ? 'good' : 'bomb';
     let x = Math.random() * (canvas.width - 30);
-    items.push({ x, y:0, width:30, height:30, type });
+    items.push({ x, y: -30, width: 30, height: 30, type });
 }
 
-// ===== Collision =====
-function checkCollision(a, b){
-    return a.x < b.x + b.width &&
-           a.x + a.width > b.x &&
-           a.y < b.y + b.height &&
-           a.y + a.height > b.y;
+function checkCollision(a, b) {
+    return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-// ===== Update Game =====
-function update(){
-    bullets.forEach(b => b.y -= 8);
-    bullets = bullets.filter(b => b.y + b.height > 0);
+function update() {
+    // Move Bullets
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        bullets[i].y -= 7;
+        if (bullets[i].y < -20) bullets.splice(i, 1);
+    }
 
-    items.forEach(i => i.y += 3);
-    items = items.filter(i => i.y < canvas.height);
+    // Move Items and Check Collisions
+    for (let i = items.length - 1; i >= 0; i--) {
+        items[i].y += 4;
 
-    bullets.forEach((b, bi) => {
-        items.forEach((i, ii) => {
-            if(checkCollision(b, i)){
-                score += i.type === 'good' ? 1 : -1;
-                bullets.splice(bi,1);
-                items.splice(ii,1);
+        // Collision with bullets
+        for (let j = bullets.length - 1; j >= 0; j--) {
+            if (checkCollision(bullets[j], items[i])) {
+                score += (items[i].type === 'good' ? 1 : -5);
+                bullets.splice(j, 1);
+                items.splice(i, 1);
+                break; // Exit inner loop as item is gone
             }
-        });
-    });
+        }
+
+        // Remove if off screen
+        if (items[i] && items[i].y > canvas.height) {
+            items.splice(i, 1);
+        }
+    }
 }
 
-// ===== Draw Game =====
-function draw(){
-    ctx.clearRect(0,0,canvas.width, canvas.height);
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Cannon
     ctx.fillStyle = "#4B2E2E";
@@ -213,84 +205,68 @@ function draw(){
 
     // Items
     items.forEach(i => {
-        ctx.fillStyle = i.type==='good' ? "#8BC34A" : "#FF5252";
+        ctx.fillStyle = i.type === 'good' ? "#8BC34A" : "#FF5252";
         ctx.fillRect(i.x, i.y, i.width, i.height);
     });
 
-    // Score and Timer
+    // UI
     ctx.fillStyle = "#4B2E2E";
-    ctx.font = "18px Arial";
-    ctx.fillText(`Player: ${username}`, 10, 20);
-    ctx.fillText(`Score: ${score}`, 10, 40);
-    ctx.fillText(`Time: ${timeLeft}s`, 10, 60);
+    ctx.font = "bold 16px Arial";
+    ctx.fillText(`Player: ${username}`, 10, 25);
+    ctx.fillText(`Score: ${score}`, 10, 50);
+    ctx.fillText(`Time: ${timeLeft}s`, canvas.width - 90, 25);
 }
 
-// ===== Game Loop =====
-function gameLoop(){
+function gameLoop() {
+    if (!gameActive) return;
     update();
     draw();
     gameLoopId = requestAnimationFrame(gameLoop);
 }
 
-// ===== End Game =====
-async function endGame(){
+async function endGame() {
+    gameActive = false;
     cancelAnimationFrame(gameLoopId);
     clearInterval(itemIntervalId);
     clearInterval(timerIntervalId);
     clearInterval(autoShootIntervalId);
 
-    debug(`Time's up! ${username}, your final score is ${score}`);
-    alert(`Time's up! ${username}, your final score is ${score}`);
-
-    // Save score to Supabase
+    alert(`Game Over! Score: ${score}`);
+    
     await saveScore(username, score);
-
-    // Show leaderboard
     await showLeaderboard();
-
-    debug("Game ended");
+    
+    // Switch back to start screen
+    canvas.style.display = 'none';
+    document.getElementById('startScreen').style.display = 'block';
 }
 
-// ===== Save Score =====
-async function saveScore(name, score){
+async function saveScore(name, score) {
     try {
-        const { data, error } = await supabase
-            .from('scores')
-            .insert([{ name, score }]);
-        if(error) debug("Error saving score: " + error.message);
-        else debug("Score saved successfully");
-    } catch(err){
-        debug("Exception saving score: " + err.message);
+        await supabase.from('scores').insert([{ name, score }]);
+    } catch (err) {
+        console.error("Save error:", err);
     }
 }
 
-// ===== Fetch Leaderboard =====
-async function fetchTopScores(){
+async function showLeaderboard() {
     try {
         const { data, error } = await supabase
             .from('scores')
             .select('name, score')
             .order('score', { ascending: false })
             .limit(5);
-        if(error) {
-            debug("Error fetching leaderboard: " + error.message);
-            return [];
+
+        if (data) {
+            let html = "<h2>Top 5 High Scores</h2><ol>";
+            data.forEach(s => { html += `<li>${s.name}: ${s.score}</li>`; });
+            html += "</ol>";
+            document.getElementById("leaderboard").innerHTML = html;
         }
-        return data;
-    } catch(err){
-        debug("Exception fetching leaderboard: " + err.message);
-        return [];
+    } catch (err) {
+        console.error("Fetch error:", err);
     }
 }
-
-async function showLeaderboard(){
-    const topScores = await fetchTopScores();
-    let html = "<h2>Leaderboard</h2><ol>";
-    topScores.forEach(s => { html += `<li>${s.name}: ${s.score}</li>`; });
-    html += "</ol>";
-    document.getElementById("leaderboard").innerHTML = html;
-}
 </script>
-
 </body>
 </html>
