@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile Cannon Game</title>
+    <title>Vico Game</title>
 
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -58,7 +58,7 @@
 <body>
 
 <div class="container" id="startScreen">
-    <h1>Cannon Blaster</h1>
+    <h1>Vico Game</h1>
     <p>Hit green blocks, avoid red blocks!</p>
     <input type="text" id="usernameInput" placeholder="Enter Your Name">
     <br>
@@ -195,7 +195,7 @@ function update() {
 
         for (let j = bullets.length - 1; j >= 0; j--) {
             if (checkCollision(bullets[j], items[i])) {
-                score += items[i].type === 'good' ? 1 : -5;
+                score += items[i].type === 'good' ? 1 : -1;
                 bullets.splice(j, 1);
                 items.splice(i, 1);
                 break;
