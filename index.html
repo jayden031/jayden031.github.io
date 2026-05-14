@@ -1,98 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome Page</title>
-  <style>
-    /* Reset some default styles */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-    }
-
-    body {
-      background-color: #F5E6D3; /* Light brown background */
-      color: #4B2E2E; /* Dark brown text */
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-
-    .container {
-      background-color: #ECD9B0; /* Slightly darker light brown for the container */
-      padding: 30px 20px;
-      border-radius: 15px;
-      text-align: center;
-      width: 90%;
-      max-width: 400px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    }
-
-    h1 {
-      margin-bottom: 20px;
-      font-size: 24px;
-    }
-
-    input[type="text"] {
-      width: 100%;
-      padding: 12px 15px;
-      border: 2px solid #4B2E2E;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      font-size: 16px;
-    }
-
-    input[type="text"]::placeholder {
-      color: #7C5A4D;
-    }
-
-    button {
-      background-color: #4B2E2E; /* Dark brown */
-      color: #F5E6D3; /* Light brown text */
-      border: none;
-      padding: 12px 25px;
-      font-size: 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-
-    button:hover {
-      background-color: #3A1F1F; /* Darker brown on hover */
-    }
-
-    @media (max-width: 400px) {
-      h1 {
-        font-size: 20px;
-      }
-
-      input[type="text"], button {
-        font-size: 14px;
-        padding: 10px;
-      }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cannon Game</title>
+<style>
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #F5E6D3; /* Light brown */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+  .container {
+    text-align: center;
+  }
+  #gameCanvas {
+    background-color: #ECD9B0; /* Light brown canvas */
+    display: block;
+    margin: 20px auto;
+    border: 3px solid #4B2E2E; /* Dark brown border */
+    border-radius: 10px;
+  }
+  input, button {
+    padding: 10px 15px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 2px solid #4B2E2E;
+    margin: 5px;
+  }
+  button {
+    background-color: #4B2E2E;
+    color: #F5E6D3;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #3A1F1F;
+  }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Welcome! Enter Your Name</h1>
-    <input type="text" placeholder="Your name" id="username">
-    <button onclick="startApp()">Start</button>
-  </div>
 
-  <script>
-    function startApp() {
-      const name = document.getElementById('username').value.trim();
-      if(name) {
-        alert(`Hello, ${name}! Let's get started!`);
-      } else {
-        alert("Please enter your name first.");
-      }
+<div class="container" id="startScreen">
+  <h1>Enter Your Name</h1>
+  <input type="text" id="username" placeholder="Your Name">
+  <button onclick="startGame()">Start</button>
+</div>
+
+<canvas id="gameCanvas" width="360" height="600" style="display:none;"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let cannon = { x: canvas.width / 2 - 25, y: canvas.height - 50, width: 50, height: 30 };
+let bullets = [];
+let items = [];
+let score = 0;
+let timeLeft = 30;
+let gameInterval, itemInterval, timerInterval;
+let username = '';
+
+function startGame() {
+    username = document.getElementById('username').value.trim();
+    if(!username) {
+        alert("Please enter your name first!");
+        return;
     }
-  </script>
+
+    document.getElementById('startScreen').style.display = 'none';
+    canvas.style.display = 'block';
+    score = 0;
+    bullets = [];
+    items = [];
+    timeLeft = 30;
+
+    document.addEventListener('keydown', keyDownHandler);
+
+    gameInterval = requestAnimationFrame(gameLoop);
+    itemInterval = setInterval(spawnItem, 1000);
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        if(timeLeft <= 0) endGame();
+    }, 1000);
+}
+
+function keyDownHandler(e) {
+    if(e.key === "ArrowLeft") cannon.x -= 20;
+    if(e.key === "ArrowRight") cannon.x += 20;
+    if(e.key === " ") shootBullet();
+
+    // Clamp cannon within canvas
+    if(cannon.x < 0) cannon.x = 0;
+    if(cannon.x + cannon.width > canvas.width) cannon.x = canvas.width - cannon.width;
+}
+
+function shootBullet() {
+    bullets.push({ x: cannon.x + cannon.width/2 - 5, y: cannon.y, width: 10, height: 20 });
+}
+
+function spawnItem() {
+    let type = Math.random() < 0.5 ? 'good' : 'bomb';
+    let x = Math.random() * (canvas.width - 30);
+    items.push({ x, y: 0, width: 30, height: 30, type });
+}
+
+function checkCollision(a, b) {
+    return a.x < b.x + b.width &&
+           a.x + a.width > b.x &&
+           a.y < b.y + b.height &&
+           a.y + a.height > b.y;
+}
+
+function update() {
+    // Move bullets
+    bullets.forEach(b => b.y -= 8);
+    bullets = bullets.filter(b => b.y + b.height > 0);
+
+    // Move items
+    items.forEach(i => i.y += 3);
+    items = items.filter(i => i.y < canvas.height);
+
+    // Check collisions
+    bullets.forEach((b, bi) => {
+        items.forEach((i, ii) => {
+            if(checkCollision(b, i)) {
+                if(i.type === 'good') score++;
+                else if(i.type === 'bomb') score--;
+                bullets.splice(bi,1);
+                items.splice(ii,1);
+            }
+        });
+    });
+}
+
+function draw() {
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+
+    // Draw cannon
+    ctx.fillStyle = "#4B2E2E";
+    ctx.fillRect(cannon.x, cannon.y, cannon.width, cannon.height);
+
+    // Draw bullets
+    ctx.fillStyle = "#4B2E2E";
+    bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
+
+    // Draw items
+    items.forEach(i => {
+        ctx.fillStyle = i.type === 'good' ? "#8BC34A" : "#FF5252";
+        ctx.fillRect(i.x, i.y, i.width, i.height);
+    });
+
+    // Draw score and timer
+    ctx.fillStyle = "#4B2E2E";
+    ctx.font = "18px Arial";
+    ctx.fillText(`Player: ${username}`, 10, 20);
+    ctx.fillText(`Score: ${score}`, 10, 40);
+    ctx.fillText(`Time: ${timeLeft}s`, 10, 60);
+}
+
+function gameLoop() {
+    update();
+    draw();
+    gameInterval = requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+    cancelAnimationFrame(gameInterval);
+    clearInterval(itemInterval);
+    clearInterval(timerInterval);
+    alert(`Time's up! ${username}, your final score is ${score}`);
+    location.reload(); // Reload to start again
+}
+</script>
 </body>
 </html>
