@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mobile Cannon Game</title>
+
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
 
@@ -19,9 +20,9 @@
             flex-direction: column;
             overflow: hidden;
         }
-        .container {
-            text-align: center;
-        }
+
+        .container { text-align: center; }
+
         #gameCanvas {
             background-color: #ECD9B0;
             display: none;
@@ -30,6 +31,7 @@
             border-radius: 10px;
             touch-action: none;
         }
+
         input, button {
             padding: 12px 20px;
             font-size: 16px;
@@ -37,28 +39,28 @@
             border: 2px solid #4B2E2E;
             margin: 5px;
         }
+
         button {
             background-color: #4B2E2E;
             color: #F5E6D3;
             font-weight: bold;
             cursor: pointer;
         }
+
         #leaderboard {
             margin-top: 20px;
             color: #4B2E2E;
             width: 300px;
         }
-        #leaderboard ol {
-            text-align: left;
-        }
     </style>
 </head>
+
 <body>
 
 <div class="container" id="startScreen">
     <h1>Cannon Blaster</h1>
     <p>Hit green blocks, avoid red blocks!</p>
-    <input type="text" id="username" placeholder="Enter Your Name">
+    <input type="text" id="usernameInput" placeholder="Enter Your Name">
     <br>
     <button id="startBtn">START GAME</button>
 </div>
@@ -67,14 +69,14 @@
 <div id="leaderboard"></div>
 
 <script>
-// ===== Supabase Setup =====
-const SUPABASE_URL = "https://cbeiddwkqrpmvuaqmcgn.supabase.co"; 
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZWlkZHdrcXJwbXZ1YXFtY2duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDE3MzUsImV4cCI6MjA5NDI3NzczNX0.YWWX2vmejo_vqL4PkgdnxfCtiEaNsh3KMY1LFOacJsM"; 
+// ===================== SUPABASE SETUP (FIXED) =====================
+const SUPABASE_URL = "https://cbeiddwkqrpmvuaqmcgn.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZWlkZHdrcXJwbXZ1YXFtY2duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDE3MzUsImV4cCI6MjA5NDI3NzczNX0.YWWX2vmejo_vqL4PkgdnxfCtiEaNsh3KMY1LFOacJsM";
 
-// Using window.supabase to ensure the library is found
+// create client immediately (FIXED)
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ===== Game Variables =====
+// ===================== GAME VARIABLES =====================
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -83,65 +85,65 @@ let bullets = [];
 let items = [];
 let score = 0;
 let timeLeft = 30;
-let username = ''; // Global variable
+let username = '';
 let gameActive = false;
+let dragging = false;
+
 let gameLoopId, itemIntervalId, timerIntervalId, autoShootIntervalId;
 
-// ===== Event Listeners =====
+// ===================== EVENTS =====================
 document.getElementById('startBtn').addEventListener('click', startGame);
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); dragging = true; }, {passive: false});
-canvas.addEventListener('touchmove', dragCannon, {passive: false});
-canvas.addEventListener('touchend', () => { dragging = false; });
 
-// Support mouse for testing on PC
-canvas.addEventListener('mousedown', () => { dragging = true; });
-canvas.addEventListener('mousemove', (e) => {
-    if(dragging) {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        moveCannonLogic(mouseX);
-    }
-});
-canvas.addEventListener('mouseup', () => { dragging = false; });
-
-function moveCannonLogic(targetX) {
-    cannon.x = targetX - cannon.width / 2;
-    if (cannon.x < 0) cannon.x = 0;
-    if (cannon.x + cannon.width > canvas.width) cannon.x = canvas.width - cannon.width;
-}
-
-function dragCannon(e) {
-    const rect = canvas.getBoundingClientRect();
-    const touchX = e.touches[0].clientX - rect.left;
-    moveCannonLogic(touchX);
+// Touch controls
+canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    dragging = true;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+    if (dragging) {
+        const rect = canvas.getBoundingClientRect();
+        const touchX = e.touches[0].clientX - rect.left;
+        moveCannon(touchX);
+    }
+    e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => dragging = false);
+
+function moveCannon(x) {
+    cannon.x = x - cannon.width / 2;
+    cannon.x = Math.max(0, Math.min(canvas.width - cannon.width, cannon.x));
 }
 
-// ===== Game Core Functions =====
+// ===================== GAME =====================
 function startGame() {
-    const nameInput = document.getElementById('username');
-    const nameValue = nameInput.value.trim();
+    const nameVal = document.getElementById('usernameInput').value.trim();
 
-    if (!nameValue) {
+    if (!nameVal) {
         alert("Please enter your name!");
         return;
     }
 
-    username = nameValue;
+    username = nameVal;
+
     document.getElementById('startScreen').style.display = 'none';
     document.getElementById('leaderboard').innerHTML = "";
     canvas.style.display = 'block';
 
-    // Reset state
     score = 0;
     timeLeft = 30;
     bullets = [];
     items = [];
     gameActive = true;
 
-    // Start Loops
+    clearInterval(autoShootIntervalId);
+    clearInterval(itemIntervalId);
+    clearInterval(timerIntervalId);
+
     autoShootIntervalId = setInterval(shootBullet, 400);
     itemIntervalId = setInterval(spawnItem, 800);
+
     timerIntervalId = setInterval(() => {
         timeLeft--;
         if (timeLeft <= 0) endGame();
@@ -151,65 +153,75 @@ function startGame() {
 }
 
 function shootBullet() {
-    bullets.push({ x: cannon.x + cannon.width/2 - 5, y: cannon.y, width: 10, height: 20 });
+    bullets.push({
+        x: cannon.x + cannon.width / 2 - 5,
+        y: cannon.y,
+        width: 10,
+        height: 20
+    });
 }
 
 function spawnItem() {
     let type = Math.random() < 0.7 ? 'good' : 'bomb';
     let x = Math.random() * (canvas.width - 30);
-    items.push({ x, y: -30, width: 30, height: 30, type });
+
+    items.push({
+        x,
+        y: -30,
+        width: 30,
+        height: 30,
+        type
+    });
 }
 
 function checkCollision(a, b) {
-    return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+    return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+    );
 }
 
+// ===================== UPDATE =====================
 function update() {
-    // Move Bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
         bullets[i].y -= 7;
         if (bullets[i].y < -20) bullets.splice(i, 1);
     }
 
-    // Move Items and Check Collisions
     for (let i = items.length - 1; i >= 0; i--) {
         items[i].y += 4;
 
-        // Collision with bullets
         for (let j = bullets.length - 1; j >= 0; j--) {
             if (checkCollision(bullets[j], items[i])) {
-                score += (items[i].type === 'good' ? 1 : -5);
+                score += items[i].type === 'good' ? 1 : -5;
                 bullets.splice(j, 1);
                 items.splice(i, 1);
-                break; // Exit inner loop as item is gone
+                break;
             }
         }
 
-        // Remove if off screen
         if (items[i] && items[i].y > canvas.height) {
             items.splice(i, 1);
         }
     }
 }
 
+// ===================== DRAW =====================
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Cannon
     ctx.fillStyle = "#4B2E2E";
     ctx.fillRect(cannon.x, cannon.y, cannon.width, cannon.height);
 
-    // Bullets
-    ctx.fillStyle = "#4B2E2E";
     bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
-    // Items
     items.forEach(i => {
         ctx.fillStyle = i.type === 'good' ? "#8BC34A" : "#FF5252";
         ctx.fillRect(i.x, i.y, i.width, i.height);
     });
 
-    // UI
     ctx.fillStyle = "#4B2E2E";
     ctx.font = "bold 16px Arial";
     ctx.fillText(`Player: ${username}`, 10, 25);
@@ -217,56 +229,62 @@ function draw() {
     ctx.fillText(`Time: ${timeLeft}s`, canvas.width - 90, 25);
 }
 
+// ===================== LOOP =====================
 function gameLoop() {
     if (!gameActive) return;
     update();
     draw();
-    gameLoopId = requestAnimationFrame(gameLoop);
+    requestAnimationFrame(gameLoop);
 }
 
+// ===================== END GAME =====================
 async function endGame() {
     gameActive = false;
-    cancelAnimationFrame(gameLoopId);
+
+    clearInterval(autoShootIntervalId);
     clearInterval(itemIntervalId);
     clearInterval(timerIntervalId);
-    clearInterval(autoShootIntervalId);
 
-    alert(`Game Over! Score: ${score}`);
-    
+    alert(`Time's up! Your final score: ${score}`);
+
     await saveScore(username, score);
     await showLeaderboard();
-    
-    // Switch back to start screen
+
     canvas.style.display = 'none';
     document.getElementById('startScreen').style.display = 'block';
 }
 
+// ===================== SUPABASE =====================
 async function saveScore(name, score) {
     try {
         await supabase.from('scores').insert([{ name, score }]);
     } catch (err) {
-        console.error("Save error:", err);
+        console.error(err);
     }
 }
 
 async function showLeaderboard() {
     try {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('scores')
             .select('name, score')
             .order('score', { ascending: false })
             .limit(5);
 
         if (data) {
-            let html = "<h2>Top 5 High Scores</h2><ol>";
-            data.forEach(s => { html += `<li>${s.name}: ${s.score}</li>`; });
+            let html = "<h3>Top 5 Scores</h3><ol>";
+            data.forEach(s => {
+                html += `<li>${s.name}: ${s.score}</li>`;
+            });
             html += "</ol>";
+
             document.getElementById("leaderboard").innerHTML = html;
         }
     } catch (err) {
-        console.error("Fetch error:", err);
+        console.error(err);
     }
 }
 </script>
+
 </body>
 </html>
