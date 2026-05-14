@@ -49,6 +49,11 @@
     color: #4B2E2E;
     text-align: center;
   }
+  #debug {
+    color: red;
+    text-align: center;
+    margin-top: 10px;
+  }
 </style>
 </head>
 <body>
@@ -56,17 +61,24 @@
 <div class="container" id="startScreen">
   <h1>Enter Your Name</h1>
   <input type="text" id="username" placeholder="Your Name">
-  <button onclick="startGame()">Start</button>
+  <button id="startBtn">Start</button>
 </div>
 
 <canvas id="gameCanvas" width="360" height="600"></canvas>
 <div id="leaderboard"></div>
+<div id="debug"></div>
 
 <script>
 // ===== Supabase Setup =====
 const SUPABASE_URL = "https://cbeiddwkqrpmvuaqmcgn.supabase.co"; // Replace with your URL
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZWlkZHdrcXJwbXZ1YXFtY2duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDE3MzUsImV4cCI6MjA5NDI3NzczNX0.YWWX2vmejo_vqL4PkgdnxfCtiEaNsh3KMY1LFOacJsM"; // Replace with your anon key
-const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZWlkZHdrcXJwbXZ1YXFtY2duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDE3MzUsImV4cCI6MjA5NDI3NzczNX0.YWWX2vmejo_vqL4PkgdnxfCtiEaNsh3KMY1LFOacJsM"; 
+const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); // Capital S
+
+// ===== Debug Function =====
+function debug(msg){
+    const debugDiv = document.getElementById('debug');
+    debugDiv.innerHTML += msg + "<br>";
+}
 
 // ===== Game Setup =====
 const canvas = document.getElementById('gameCanvas');
@@ -84,9 +96,16 @@ let timerIntervalId;
 let autoShootIntervalId;
 let dragging = false;
 
+// ===== Event for Start Button =====
+document.getElementById('startBtn').addEventListener('click', startGame);
+
 // ===== Start Game =====
 function startGame() {
+    debug("startGame called");
+
     username = document.getElementById('username').value.trim();
+    debug("Username entered: " + username);
+
     if(!username) {
         alert("Please enter your name!");
         return;
@@ -94,22 +113,37 @@ function startGame() {
 
     document.getElementById('startScreen').style.display = 'none';
     canvas.style.display = 'block';
+    debug("Canvas shown");
+
     score = 0;
     bullets = [];
     items = [];
     timeLeft = 30;
 
+    canvas.removeEventListener('touchstart', startDrag);
+    canvas.removeEventListener('touchmove', dragCannon);
+    canvas.removeEventListener('touchend', endDrag);
+
     canvas.addEventListener('touchstart', startDrag);
     canvas.addEventListener('touchmove', dragCannon);
     canvas.addEventListener('touchend', endDrag);
+    debug("Event listeners attached");
 
-    autoShootIntervalId = setInterval(shootBullet, 400);
-    itemIntervalId = setInterval(spawnItem, 1000);
+    autoShootIntervalId = setInterval(() => { 
+        debug("shootBullet called"); 
+        shootBullet(); 
+    }, 400);
+    itemIntervalId = setInterval(() => { 
+        debug("spawnItem called"); 
+        spawnItem(); 
+    }, 1000);
     timerIntervalId = setInterval(() => {
         timeLeft--;
+        debug("Time left: " + timeLeft);
         if(timeLeft <= 0) endGame();
     }, 1000);
 
+    debug("Starting game loop");
     gameLoop();
 }
 
@@ -205,6 +239,7 @@ async function endGame(){
     clearInterval(timerIntervalId);
     clearInterval(autoShootIntervalId);
 
+    debug(`Time's up! ${username}, your final score is ${score}`);
     alert(`Time's up! ${username}, your final score is ${score}`);
 
     // Save score to Supabase
@@ -213,32 +248,39 @@ async function endGame(){
     // Show leaderboard
     await showLeaderboard();
 
-    location.reload(); // reload for new game
+    debug("Game ended");
 }
 
 // ===== Save Score =====
 async function saveScore(name, score){
-    const { data, error } = await supabase
-        .from('scores')
-        .insert([{ name, score }]);
-
-    if(error) console.error("Error saving score:", error);
-    else console.log("Score saved:", data);
+    try {
+        const { data, error } = await supabase
+            .from('scores')
+            .insert([{ name, score }]);
+        if(error) debug("Error saving score: " + error.message);
+        else debug("Score saved successfully");
+    } catch(err){
+        debug("Exception saving score: " + err.message);
+    }
 }
 
 // ===== Fetch Leaderboard =====
 async function fetchTopScores(){
-    const { data, error } = await supabase
-        .from('scores')
-        .select('name, score')
-        .order('score', { ascending: false })
-        .limit(5);
-
-    if(error){
-        console.error("Error fetching leaderboard:", error);
+    try {
+        const { data, error } = await supabase
+            .from('scores')
+            .select('name, score')
+            .order('score', { ascending: false })
+            .limit(5);
+        if(error) {
+            debug("Error fetching leaderboard: " + error.message);
+            return [];
+        }
+        return data;
+    } catch(err){
+        debug("Exception fetching leaderboard: " + err.message);
         return [];
     }
-    return data;
 }
 
 async function showLeaderboard(){
@@ -249,5 +291,6 @@ async function showLeaderboard(){
     document.getElementById("leaderboard").innerHTML = html;
 }
 </script>
+
 </body>
 </html>
