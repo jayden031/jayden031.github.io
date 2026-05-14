@@ -74,7 +74,7 @@ const SUPABASE_URL = "https://cbeiddwkqrpmvuaqmcgn.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZWlkZHdrcXJwbXZ1YXFtY2duIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDE3MzUsImV4cCI6MjA5NDI3NzczNX0.YWWX2vmejo_vqL4PkgdnxfCtiEaNsh3KMY1LFOacJsM";
 
 // create client immediately (FIXED)
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===================== GAME VARIABLES =====================
 const canvas = document.getElementById('gameCanvas');
@@ -257,7 +257,7 @@ async function endGame() {
 // ===================== SUPABASE =====================
 async function saveScore(name, score) {
     try {
-        await supabase.from('scores').insert([{ name, score }]);
+        await supabaseClient.from('scores').insert([{ name, score }]);
     } catch (err) {
         console.error(err);
     }
@@ -265,7 +265,7 @@ async function saveScore(name, score) {
 
 async function showLeaderboard() {
     try {
-        const { data } = await supabase
+        const { data } = await supabaseClient
             .from('scores')
             .select('name, score')
             .order('score', { ascending: false })
